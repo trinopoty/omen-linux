@@ -24,6 +24,7 @@
 #include <linux/acpi.h>
 #include <linux/rfkill.h>
 #include <linux/string.h>
+#include <uapi/linux/input-event-codes.h>
 
 MODULE_AUTHOR("Matthew Garrett <mjg59@srcf.ucam.org>");
 MODULE_DESCRIPTION("HP laptop WMI hotkeys driver");
@@ -160,6 +161,7 @@ static const struct key_entry hp_wmi_keymap[] = {
 };
 
 static struct input_dev *hp_wmi_input_dev;
+static struct input_dev *omen_key_input_dev;
 static struct platform_device *hp_wmi_platform_dev;
 
 static struct rfkill *wifi_rfkill;
@@ -511,14 +513,17 @@ static ssize_t postcode_store(struct device *dev, struct device_attribute *attr,
 static ssize_t fourzone_detect_show(struct device *dev, struct device_attribute *attr,
 				 char *buf)
 {
-	int ret;
+	int ret, result;
 	char buffer[128] = {0};
 
+	result = 0;
 	ret = hp_wmi_perform_query(HPWMI_KBRGB_DETECT, HPWMI_KBRGB, &buffer, 1, 128);
-	if (ret)
-		return ret < 0 ? ret : -EINVAL;
-	
-	return sprintf(buf, buffer[0] & 0x1 ? "present\n" : "not present\n");
+	if (!ret)
+	{
+		result = buffer[0] & 0x1;
+	}
+
+	return sprintf(buf, result ? "present\n" : "not present\n");
 }
 
 static ssize_t fourzone_onoff_show(struct device *dev, struct device_attribute *attr,
@@ -526,11 +531,11 @@ static ssize_t fourzone_onoff_show(struct device *dev, struct device_attribute *
 {
 	int ret;
 	unsigned char buffer[128] = {0};
-	
+
 	ret = hp_wmi_perform_query(HPWMI_KBRGB_GET_BRIGHTNESS, HPWMI_KBRGB, &buffer, 1, 128);
 	if (ret)
 		return ret < 0 ? ret : -EINVAL;
-	
+
 	return sprintf(buf, buffer[0] & 0x80 ? "on\n" : "off\n");
 }
 
@@ -539,23 +544,23 @@ static ssize_t fourzone_onoff_store(struct device *dev, struct device_attribute 
 {
 	int ret, on, off;
 	unsigned char buffer[128] = {0};
-	
+
 	on = !strncmp("on", buf, 2);
 	if (!on) {
 		off = !strncmp("off", buf, 3);
 		if (!off)
 			return -EINVAL;
 	}
-	
+
 	buffer[0] = (on ? 0x80 : 0x00) | 0x64;
 	buffer[1] = 0;
 	buffer[2] = 0;
 	buffer[3] = 0;
-	
+
 	ret = hp_wmi_perform_query(HPWMI_KBRGB_SET_BRIGHTNESS, HPWMI_KBRGB, &buffer, 4, 4);
 	if (ret)
 		return ret < 0 ? ret : -EINVAL;
-	
+
 	return count;
 }
 
@@ -565,18 +570,18 @@ static ssize_t fourzone_color_show(struct device *dev, struct device_attribute *
 	int ret, zoneIdx, bufferIdx;
 	unsigned int colors[4];
 	unsigned char buffer[128];
-	
+
 	ret = hp_wmi_perform_query(HPWMI_KBRGB_GET_COLOR, HPWMI_KBRGB, buffer, 1, 128);
 	if (ret)
 		return ret < 0 ? ret : -EINVAL;
-	
+
 	for (zoneIdx = 0; zoneIdx < 4; zoneIdx++) {
 		bufferIdx = 25 + (zoneIdx * 3);
 		colors[zoneIdx] = (((unsigned int) buffer[bufferIdx]) << 16) | 
 			(((unsigned int) buffer[bufferIdx + 1]) << 8) | 
 			(((unsigned int) buffer[bufferIdx + 2]));
 	}
-	
+
 	return sprintf(buf, "0x%08x\n0x%08x\n0x%08x\n0x%08x\n", colors[0], colors[1], 
 		colors[2], colors[3]);
 }
@@ -588,7 +593,7 @@ static ssize_t fourzone_color_store(struct device *dev, struct device_attribute 
 	char *input, *parser, *parsed;
 	unsigned int colors[4];
 	unsigned char buffer[128] = {0};
-	
+
 	zoneIdx = 0;
 	input = kstrdup(buf, GFP_KERNEL);
 	parser = input;
@@ -597,35 +602,35 @@ static ssize_t fourzone_color_store(struct device *dev, struct device_attribute 
 		ret = kstrtouint(parsed, 0, &colors[zoneIdx]);
 		if (ret)
 			continue;
-		
+
 		zoneIdx++;
 	}
-	
+
 	kfree(input);
-	
+
 	if (zoneIdx != 4)
 		return -EINVAL;
-	
+
 	colors[0] = colors[0] & 0x00ffffff;
 	colors[1] = colors[1] & 0x00ffffff;
 	colors[2] = colors[2] & 0x00ffffff;
 	colors[3] = colors[3] & 0x00ffffff;
-	
+
 	ret = hp_wmi_perform_query(HPWMI_KBRGB_GET_COLOR, HPWMI_KBRGB, buffer, 1, 128);
 	if (ret)
 		return ret < 0 ? ret : -EINVAL;
-	
+
 	for (zoneIdx = 0; zoneIdx < 4; zoneIdx++) {
 		bufferIdx = 25 + (zoneIdx * 3);
 		buffer[bufferIdx] = (colors[zoneIdx] >> 16) & 0xff;
 		buffer[bufferIdx+1] = (colors[zoneIdx] >> 8) & 0xff;
 		buffer[bufferIdx+2] = colors[zoneIdx] & 0xff;
 	}
-	
+
 	ret = hp_wmi_perform_query(HPWMI_KBRGB_SET_COLOR, HPWMI_KBRGB, buffer, 128, 4);
 	if (ret)
 		return ret < 0 ? ret : -EINVAL;
-	
+
 	return count;
 }
 
@@ -663,10 +668,30 @@ static void hp_wmi_notify(u32 value, void *context)
 	u32 *location;
 	int key_code;
 
-	status = wmi_get_event_data(value, &response);
-	if (status != AE_OK) {
-		pr_info("bad event status 0x%x\n", status);
-		return;
+	// For OMEN Key
+	u32 omen_data[] = { 0x04, 0x00 };
+	union acpi_object omen_acpi_object = {
+		.buffer = {
+			.type = ACPI_TYPE_BUFFER,
+			.length = 8,
+			.pointer = (u8 *)omen_data
+		}
+	};
+
+	if (value == 0x80)
+	{
+		// OMEN Key press probably.
+		// Force a Hotkey detection event.
+		response.pointer = kmalloc(sizeof(union acpi_object), GFP_KERNEL);
+		memcpy(response.pointer, &omen_acpi_object, sizeof(union acpi_object));
+	}
+	else
+	{
+		status = wmi_get_event_data(value, &response);
+		if (status != AE_OK) {
+			pr_info("bad event status 0x%x\n", status);
+			return;
+		}
 	}
 
 	obj = (union acpi_object *)response.pointer;
@@ -715,6 +740,15 @@ static void hp_wmi_notify(u32 value, void *context)
 		key_code = hp_wmi_read_int(HPWMI_HOTKEY_QUERY);
 		if (key_code < 0)
 			break;
+
+		if (key_code == 0x21a5)
+		{
+			input_report_key(omen_key_input_dev, BTN_0, 1);
+			input_sync(omen_key_input_dev);
+			input_report_key(omen_key_input_dev, BTN_0, 0);
+			input_sync(omen_key_input_dev);
+			break;
+		}
 
 		if (!sparse_keymap_report_event(hp_wmi_input_dev,
 						key_code, 1, true))
@@ -799,8 +833,21 @@ static int __init hp_wmi_input_setup(void)
 	if (err)
 		goto err_free_dev;
 
+	/* OMEN */
+	omen_key_input_dev = input_allocate_device();
+	if (!omen_key_input_dev)
+		return -ENOMEM;
+
+	omen_key_input_dev->name = "HP OMEN key";
+	omen_key_input_dev->phys = "wmi/input_omen";
+	omen_key_input_dev->id.bustype = BUS_HOST;
+
+	__set_bit(EV_KEY, omen_key_input_dev->evbit);
+	__set_bit(BTN_0, omen_key_input_dev->keybit);
+
 	/* Set initial hardware state */
 	input_sync(hp_wmi_input_dev);
+	input_sync(omen_key_input_dev);
 
 	if (!hp_wmi_bios_2009_later() && hp_wmi_bios_2008_later())
 		hp_wmi_enable_hotkeys();
@@ -815,12 +862,19 @@ static int __init hp_wmi_input_setup(void)
 	if (err)
 		goto err_uninstall_notifier;
 
+	err = input_register_device(omen_key_input_dev);
+	if (err)
+		goto err_unregister_input;
+
 	return 0;
 
+ err_unregister_input:
+ 	input_unregister_device(hp_wmi_input_dev);
  err_uninstall_notifier:
 	wmi_remove_notify_handler(HPWMI_EVENT_GUID);
  err_free_dev:
 	input_free_device(hp_wmi_input_dev);
+	input_free_device(omen_key_input_dev);
 	return err;
 }
 
@@ -828,6 +882,7 @@ static void hp_wmi_input_destroy(void)
 {
 	wmi_remove_notify_handler(HPWMI_EVENT_GUID);
 	input_unregister_device(hp_wmi_input_dev);
+	input_unregister_device(omen_key_input_dev);
 }
 
 static int __init hp_wmi_rfkill_setup(struct platform_device *device)
@@ -1094,8 +1149,6 @@ static int __init hp_wmi_init(void)
 	int bios_capable = wmi_has_guid(HPWMI_BIOS_GUID);
 	int err;
 	
-	printk(KERN_WARNING "OMEN - Initializing WMI. Event: %d, Bios: %d\n", event_capable, bios_capable);
-
 	if (!bios_capable && !event_capable)
 		return -ENODEV;
 
