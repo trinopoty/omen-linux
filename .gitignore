@@ -4,5 +4,7 @@
 *.cmd
 *.mod
 *.mod.c
+*.swp
 Module.symvers
 modules.order
+
