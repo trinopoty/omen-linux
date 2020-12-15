@@ -2,6 +2,8 @@
 #define OMENLINUX_MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QBoxLayout>
+#include <QTabWidget>
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -9,7 +11,9 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow();
     ~MainWindow() override;
-};
 
+private:
+    QTabWidget* mTabWidget;
+};
 
 #endif //OMENLINUX_MAINWINDOW_H
