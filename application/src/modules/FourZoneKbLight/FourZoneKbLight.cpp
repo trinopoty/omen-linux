@@ -1,11 +1,13 @@
 #include <QWidget>
 #include "FourZoneKbLight.h"
+#include "FourZoneKbLightDriver.h"
+#include "FourZoneKbLightWidget.h"
 
 bool DetectFourZoneKbLight() {
-    // TODO: Insert logic to detect if 4 zone keyboard is present.
-    return true;
+    FourZoneKbLightDriver driver;
+    return driver.DriverDetect();
 }
 
 QWidget* InitializeFourZoneKbLight() {
-    return new QWidget();
+    return new FourZoneKbLightWidget();
 }

@@ -19,7 +19,8 @@ include_directories(include)
 
 add_library(FourZone STATIC
         src/modules/FourZoneKbLight/FourZoneKbLight.cpp
-        src/modules/FourZoneKbLight/FourZoneKbLightDriver.cpp)
+        src/modules/FourZoneKbLight/FourZoneKbLightDriver.cpp
+        src/modules/FourZoneKbLight/FourZoneKbLightWidget.cpp)
 target_link_libraries(FourZone Qt5::Core)
 target_link_libraries(FourZone Qt5::Gui)
 target_link_libraries(FourZone Qt5::Widgets)
