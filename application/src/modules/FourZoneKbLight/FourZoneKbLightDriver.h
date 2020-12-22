@@ -13,8 +13,11 @@ public:
 
     bool DriverDetect();
 
-    int DriverGetOnOff(FourZoneKbLightState *state);
-    int DriverSetOnOff(FourZoneKbLightState state);
+    int DriverGetOnOff(FourZoneKbLightState *state) const;
+    int DriverSetOnOff(FourZoneKbLightState state) const;
+
+    int DriverGetColors(unsigned int *zone1, unsigned int *zone2, unsigned int *zone3, unsigned int *zone4) const;
+    int DriverSetColors(unsigned int zone1, unsigned int zone2, unsigned int zone3, unsigned int zone4) const;
 
 private:
     bool mDetected;
