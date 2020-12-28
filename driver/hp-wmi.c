@@ -83,6 +83,9 @@ enum hp_wmi_commandtype {
 	HPWMI_WIRELESS2_QUERY		= 0x1b,
 	HPWMI_POSTCODEERROR_QUERY	= 0x2a,
 
+	HPWMI_MACRO_SET			= 0x0f,
+	HPWMI_MACRO_ENABLE		= 0x17,
+
 	HPWMI_KBRGB_DETECT		= 0x01,
 	HPWMI_KBRGB_GET_COLOR	= 0x02,
 	HPWMI_KBRGB_SET_COLOR	= 0x03,
@@ -94,6 +97,7 @@ enum hp_wmi_command {
 	HPWMI_READ	= 0x01,
 	HPWMI_WRITE	= 0x02,
 	HPWMI_ODM	= 0x03,
+	HPWMI_MACRO = 0x020008,
 	HPWMI_KBRGB	= 0x020009,
 };
 
@@ -508,6 +512,44 @@ static ssize_t postcode_store(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+/* Macros */
+
+static ssize_t macros_detect_show(struct device *dev, struct device_attribute *attr,
+				 char *buf)
+{
+	// TODO: Implement logic to detect macros support
+	return sprintf(buf, "present\n");
+}
+
+static ssize_t macros_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	int ret;
+	unsigned char *buffer;
+
+	if (count < 4096)
+		return -EINVAL;
+
+	buffer = kmalloc(4096, GFP_KERNEL);
+	memcpy(buffer, buf, 4096);
+	ret = hp_wmi_perform_query(HPWMI_MACRO_SET, HPWMI_MACRO, buffer, 4096, 0);
+	if (ret)
+		goto error;
+
+	memset(buffer, 0, 4096);
+	buffer[0] = 1;
+	ret = hp_wmi_perform_query(HPWMI_MACRO_ENABLE, HPWMI_MACRO, buffer, 4, 0);
+	if (ret)
+		goto error;
+
+	kfree(buffer);
+	return count;
+
+error:
+	kfree(buffer);
+	return ret < 0 ? ret : -EINVAL;
+}
+
 /* 4 Zone Keyboard */
 
 static ssize_t fourzone_detect_show(struct device *dev, struct device_attribute *attr,
@@ -641,6 +683,9 @@ static DEVICE_ATTR_RO(dock);
 static DEVICE_ATTR_RO(tablet);
 static DEVICE_ATTR_RW(postcode);
 
+static DEVICE_ATTR_RO(macros_detect);
+static DEVICE_ATTR_WO(macros);
+
 static DEVICE_ATTR_RO(fourzone_detect);
 static DEVICE_ATTR_RW(fourzone_onoff);
 static DEVICE_ATTR_RW(fourzone_color);
@@ -652,6 +697,10 @@ static struct attribute *hp_wmi_attrs[] = {
 	&dev_attr_dock.attr,
 	&dev_attr_tablet.attr,
 	&dev_attr_postcode.attr,
+
+	&dev_attr_macros_detect.attr,
+	&dev_attr_macros.attr,
+
 	&dev_attr_fourzone_detect.attr,
 	&dev_attr_fourzone_onoff.attr,
 	&dev_attr_fourzone_color.attr,
