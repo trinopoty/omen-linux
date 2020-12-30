@@ -3,13 +3,6 @@
 
 #include <OmenModule.h>
 
-bool DetectFourZoneKbLight();
-QWidget* InitializeFourZoneKbLight();
-
-static OmenModule FourZoneKbLightModule = {
-        .name = "Four Zone Keyboard",
-        .detector = DetectFourZoneKbLight,
-        .initialize = InitializeFourZoneKbLight,
-};
+std::shared_ptr<OModule> GetFourZoneModule();
 
 #endif //OMENLINUX_FOURZONEKBLIGHT_H
