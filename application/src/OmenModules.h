@@ -3,9 +3,11 @@
 
 #include <OmenModule.h>
 #include "modules/FourZoneKbLight/FourZoneKbLight.h"
+#include "modules/MacrosModule/MacrosModule.h"
 
 static GetModule Modules[] = {
         &GetFourZoneModule,
+        &GetMacrosModule,
         nullptr
 };
 

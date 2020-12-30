@@ -35,6 +35,14 @@ target_link_libraries(FourZone Qt5::Gui)
 target_link_libraries(FourZone Qt5::Widgets)
 target_link_libraries(FourZone OmenLinux-QtIncludes)
 
+add_library(Macros STATIC
+        src/modules/MacrosModule/MacrosModule.cpp
+        src/modules/MacrosModule/OMacrosModuleInstance.cpp)
+target_link_libraries(Macros Qt5::Core)
+target_link_libraries(Macros Qt5::Gui)
+target_link_libraries(Macros Qt5::Widgets)
+target_link_libraries(Macros OmenLinux-QtIncludes)
+
 add_executable(OmenLinux
         src/main.cpp
         src/MainWindow.cpp)
@@ -43,3 +51,4 @@ target_link_libraries(OmenLinux Qt5::Gui)
 target_link_libraries(OmenLinux Qt5::Widgets)
 target_link_libraries(OmenLinux OmenLinux-QtIncludes)
 target_link_libraries(OmenLinux FourZone)
+target_link_libraries(OmenLinux Macros)
