@@ -1,4 +1,4 @@
-#include "FourZoneKbLightInternal.h"
+#include "FourZoneModuleInstance.h"
 
 OFourZoneModuleInstance::OFourZoneModuleInstance(std::shared_ptr<OModule> module, rapidjson::Value &configuration):
         OModuleInstance(), mModule(std::move(module)), mView(new FourZoneKbLightWidget(configuration)) {

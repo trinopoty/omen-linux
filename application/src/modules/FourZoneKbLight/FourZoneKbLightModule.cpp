@@ -1,8 +1,8 @@
-#include "FourZoneKbLight.h"
+#include "FourZoneKbLightModule.h"
 
 #include <memory>
 
-#include "FourZoneKbLightInternal.h"
+#include "FourZoneModuleInstance.h"
 #include "FourZoneKbLightDriver.h"
 
 /* OFourZoneModule */

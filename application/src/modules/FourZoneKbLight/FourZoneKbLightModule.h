@@ -1,0 +1,8 @@
+#ifndef OMENLINUX_FOURZONEKBLIGHTMODULE_H
+#define OMENLINUX_FOURZONEKBLIGHTMODULE_H
+
+#include <OmenModule.h>
+
+std::shared_ptr<OModule> GetFourZoneModule();
+
+#endif //OMENLINUX_FOURZONEKBLIGHTMODULE_H
