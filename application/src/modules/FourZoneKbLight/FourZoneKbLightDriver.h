@@ -8,19 +8,17 @@ enum FourZoneKbLightState {
 
 class FourZoneKbLightDriver {
 public:
-    FourZoneKbLightDriver();
-    ~FourZoneKbLightDriver() = default;
+    static bool DriverDetect();
 
-    bool DriverDetect();
+    static int DriverGetOnOff(FourZoneKbLightState *state);
+    static int DriverSetOnOff(FourZoneKbLightState state);
 
-    int DriverGetOnOff(FourZoneKbLightState *state) const;
-    int DriverSetOnOff(FourZoneKbLightState state) const;
-
-    int DriverGetColors(unsigned int *zone1, unsigned int *zone2, unsigned int *zone3, unsigned int *zone4) const;
-    int DriverSetColors(unsigned int zone1, unsigned int zone2, unsigned int zone3, unsigned int zone4) const;
+    static int DriverGetColors(unsigned int *zone1, unsigned int *zone2, unsigned int *zone3, unsigned int *zone4);
+    static int DriverSetColors(unsigned int zone1, unsigned int zone2, unsigned int zone3, unsigned int zone4);
 
 private:
-    bool mDetected;
+    FourZoneKbLightDriver() = default;
+    ~FourZoneKbLightDriver() = default;
 };
 
 #endif //OMENLINUX_FOURZONEKBLIGHTDRIVER_H

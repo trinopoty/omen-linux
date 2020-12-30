@@ -4,10 +4,8 @@
 
 #include "FourZoneKbLightWidget.h"
 
-FourZoneKbLightWidget::FourZoneKbLightWidget(rapidjson::Value &configuration): mDriver(),
+FourZoneKbLightWidget::FourZoneKbLightWidget(rapidjson::Value &configuration):
         mLightOn(false), mZone1Color(0), mZone2Color(0), mZone3Color(0), mZone4Color(0) {
-    mDriver.DriverDetect();
-
     auto layout = new QFormLayout(this);
     setLayout(layout);
 
@@ -106,8 +104,8 @@ void FourZoneKbLightWidget::onZone4ColorChanged(unsigned int color) {
 
 void FourZoneKbLightWidget::initializeState() {
     auto state = KB_LIGHT_OFF;
-    mDriver.DriverGetOnOff(&state);
-    mDriver.DriverGetColors(&mZone1Color, &mZone2Color, &mZone3Color, &mZone4Color);
+    FourZoneKbLightDriver::DriverGetOnOff(&state);
+    FourZoneKbLightDriver::DriverGetColors(&mZone1Color, &mZone2Color, &mZone3Color, &mZone4Color);
 
     mLightOn = (state == KB_LIGHT_ON);
 
@@ -131,8 +129,8 @@ void FourZoneKbLightWidget::updateColorControls() {
 }
 
 void FourZoneKbLightWidget::applyState(bool publishEvent) {
-    mDriver.DriverSetColors(mZone1Color, mZone2Color, mZone3Color, mZone4Color);
-    mDriver.DriverSetOnOff(mLightOn? KB_LIGHT_ON : KB_LIGHT_OFF);
+    FourZoneKbLightDriver::DriverSetColors(mZone1Color, mZone2Color, mZone3Color, mZone4Color);
+    FourZoneKbLightDriver::DriverSetOnOff(mLightOn? KB_LIGHT_ON : KB_LIGHT_OFF);
 
     if (publishEvent) {
         ConfigurationChanged();

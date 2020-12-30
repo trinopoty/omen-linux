@@ -21,8 +21,7 @@ public:
     }
 
     bool ShouldEnable() const override {
-        FourZoneKbLightDriver driver;
-        return driver.DriverDetect();
+        return FourZoneKbLightDriver::DriverDetect();
     }
 
     std::unique_ptr<OModuleInstance> MakeInstance(rapidjson::Value &configuration) override {

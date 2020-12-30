@@ -29,8 +29,6 @@ signals:
     void ConfigurationChanged();
 
 private:
-    FourZoneKbLightDriver mDriver;
-
     QButtonGroup* mOnOffGroup;
     QRadioButton* mOnButton;
     QRadioButton* mOffButton;
