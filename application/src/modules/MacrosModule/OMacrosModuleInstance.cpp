@@ -1,7 +1,8 @@
 #include "OMacrosModuleInstance.h"
+#include "MacrosWidget.h"
 
 OMacrosModuleInstance::OMacrosModuleInstance(std::shared_ptr<OModule> module, rapidjson::Value &configuration):
-        OModuleInstance(), mModule(std::move(module)), mView(new QWidget()) {
+        OModuleInstance(), mModule(std::move(module)), mView(new MacrosWidget()) {
 }
 
 OMacrosModuleInstance::~OMacrosModuleInstance() noexcept = default;

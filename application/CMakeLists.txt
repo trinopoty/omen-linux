@@ -37,7 +37,9 @@ target_link_libraries(FourZone OmenLinux-QtIncludes)
 
 add_library(Macros STATIC
         src/modules/MacrosModule/MacrosModule.cpp
-        src/modules/MacrosModule/OMacrosModuleInstance.cpp)
+        src/modules/MacrosModule/OMacrosModuleInstance.cpp
+        src/modules/MacrosModule/MacrosWidget.cpp
+        src/modules/MacrosModule/MacroRecordDialog.cpp)
 target_link_libraries(Macros Qt5::Core)
 target_link_libraries(Macros Qt5::Gui)
 target_link_libraries(Macros Qt5::Widgets)

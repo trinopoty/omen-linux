@@ -9,7 +9,7 @@
 const uint32_t PrintScreenMake = 0xE02AE037;
 const uint32_t PrintScreenBreak = 0xE0B7E0AA;
 
-typedef struct _KeyInfo {
+typedef struct {
     uint32_t key;
     uint32_t scancode;
     const char* label;
