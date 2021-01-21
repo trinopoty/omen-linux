@@ -16,7 +16,7 @@ MacrosWidget::MacrosWidget() {
     connect(button, &QAbstractButton::clicked, this, &MacrosWidget::handleClick);
 }
 
-void MacrosWidget::handleClick(bool checked) {
-    auto wnd = new MacroRecordDialog();
+void MacrosWidget::handleClick(bool) {
+    auto wnd = new MacroRecordDialog(this);
     wnd->show();
 }

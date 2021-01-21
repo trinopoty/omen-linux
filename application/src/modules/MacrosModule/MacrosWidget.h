@@ -8,10 +8,10 @@ Q_OBJECT
 
 public:
     MacrosWidget();
-    ~MacrosWidget() = default;
+    ~MacrosWidget() override = default;
 
 public slots:
-    void handleClick(bool checked);
+    void handleClick(bool);
 };
 
 

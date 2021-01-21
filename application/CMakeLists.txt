@@ -44,6 +44,7 @@ target_link_libraries(Macros Qt5::Core)
 target_link_libraries(Macros Qt5::Gui)
 target_link_libraries(Macros Qt5::Widgets)
 target_link_libraries(Macros OmenLinux-QtIncludes)
+target_link_libraries(Macros rt)
 
 add_executable(OmenLinux
         src/main.cpp

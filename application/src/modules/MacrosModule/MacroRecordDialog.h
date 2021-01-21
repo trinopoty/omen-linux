@@ -1,6 +1,7 @@
 #ifndef OMENLINUX_MACRORECORDDIALOG_H
 #define OMENLINUX_MACRORECORDDIALOG_H
 
+#include <aio.h>
 #include <linux/input.h>
 
 #include <QDialog>
@@ -8,11 +9,6 @@
 #include <QTableWidget>
 #include <QPushButton>
 #include <QList>
-#include <QThread>
-
-#ifndef EV_SYN
-#define EV_SYN 0
-#endif
 
 const int EVENTS_BUFFER_SIZE = 64;
 
@@ -22,44 +18,33 @@ typedef struct {
     uint64_t timestamp;
 } InputEvent;
 
-class InputReadThread: public QThread {
-Q_OBJECT
-
-public:
-    InputReadThread(QObject *parent);
-    ~InputReadThread() override = default;
-
-    void setDevicePath(QString &devicePath);
-    void stopListening();
-
-    void run() override;
-
-signals:
-    void eventsReceived(int count, InputEvent* events);
-
-private:
-    QString mInputDevice;
-    bool mShouldQuit;
-    struct input_event mInputEvents[EVENTS_BUFFER_SIZE];
-    InputEvent mEvents[EVENTS_BUFFER_SIZE];
-};
-
 class MacroRecordDialog: public QDialog {
 Q_OBJECT
 
 public:
-    MacroRecordDialog();
-    ~MacroRecordDialog() override = default;
+    explicit MacroRecordDialog(QWidget*);
+    ~MacroRecordDialog() noexcept override;
 
 protected:
     bool event(QEvent *) override;
+    void showEvent(QShowEvent *) override;
 
 public slots:
+    void handleOkButtonClick(bool);
+    void handleCancelButtonClick(bool);
     void handleRecordButtonClick(bool);
-    void handleEventsReceived(int count, InputEvent* events);
+
+signals:
+    void resultAvailable(bool macroRecorded, QList<InputEvent*> &recordedKeys);
 
 private:
     bool findInputDevice();
+    bool startRecordingInput();
+    void stopRecordingInput();
+    void clearRecordedKeys();
+    void handleEventsReceived(int count);
+
+    static void inputReadCallback(union sigval value);
 
 private:
     QTableWidget *mRecordedKeysList;
@@ -72,8 +57,11 @@ private:
     bool mRecording;
     bool mInputDeviceFound;
     QString mInputDevicePath;
-    InputReadThread mInputReadThread;
     QList<InputEvent*> mRecordedKeys;
+
+    struct aiocb mInputEventAio;
+    struct input_event mInputEventsRaw[EVENTS_BUFFER_SIZE];
+    InputEvent mInputEvents[EVENTS_BUFFER_SIZE];
 };
 
 

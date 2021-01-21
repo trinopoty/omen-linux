@@ -1,5 +1,6 @@
 #include "MacroRecordDialog.h"
 
+#include <csignal>
 #include <memory>
 #include <string>
 #include <dirent.h>
@@ -13,61 +14,11 @@
 
 #include "KeyInfo.h"
 
-/* InputReadThread */
-
-InputReadThread::InputReadThread(QObject *parent): QThread(parent), mShouldQuit(false) {
-}
-
-void InputReadThread::setDevicePath(QString &devicePath) {
-    mInputDevice = devicePath;
-}
-
-void InputReadThread::stopListening() {
-    mShouldQuit = true;
-}
-
-void InputReadThread::run() {
-    memset(&mInputEvents[0], 0, sizeof(struct input_event) * EVENTS_BUFFER_SIZE);
-    memset(&mEvents[0], 0, sizeof(InputEvent) * EVENTS_BUFFER_SIZE);
-
-    mShouldQuit = false;
-
-    const int fd = open(mInputDevice.toStdString().c_str(), O_RDONLY);
-    if (fd > 0) {
-        while (!mShouldQuit) {
-            const int rd = read(fd, &mInputEvents[0], sizeof(struct input_event) * EVENTS_BUFFER_SIZE);
-            if (rd < sizeof(struct input_event)) {
-                // Unrecoverable error
-                break;
-            }
-
-            const int readCount = rd / (int) sizeof(struct input_event);
-            int eventCount = 0;
-
-            memset(&mEvents[0], 0, sizeof(InputEvent) * readCount);
-
-            for (int i = 0; i < readCount; i++) {
-                if (mInputEvents[i].type == EV_KEY && mInputEvents[i].value != 2) {
-                    mEvents[eventCount].key = mInputEvents[i].code;
-                    mEvents[eventCount].isBreak = mInputEvents[i].value == 0;
-                    mEvents[eventCount].timestamp = (mInputEvents[i].time.tv_sec * 1000) + mInputEvents[i].time.tv_usec;
-                    eventCount += 1;
-                }
-            }
-
-            if (eventCount > 0 && !mShouldQuit) {
-                emit eventsReceived(eventCount, mEvents);
-            }
-        }
-
-        close(fd);
-    }
-}
-
 /* MacroRecordDialog */
 
-MacroRecordDialog::MacroRecordDialog(): mRecording(false), mInputDeviceFound(false), mInputDevicePath(""),
-        mInputReadThread(this) {
+MacroRecordDialog::MacroRecordDialog(QWidget* parent): QDialog(parent, Qt::CustomizeWindowHint | Qt::WindowTitleHint),
+                                                       mRecording(false), mInputDeviceFound(false), mInputDevicePath(""),
+                                                       mInputEventAio({0}), mInputEventsRaw(), mInputEvents() {
     setWindowTitle(tr("Edit Macro"));
     setFixedSize(450, 250);
 
@@ -85,16 +36,21 @@ MacroRecordDialog::MacroRecordDialog(): mRecording(false), mInputDeviceFound(fal
     layout->addWidget(mRecordedKeysList, 1, 0, 3, 3);
 
     mOkButton = new QPushButton(tr("OK"));
+    mOkButton->setEnabled(false);
+
     mCancelButton = new QPushButton(tr("Cancel"));
     mRecordButton = new QPushButton(tr("Record"));
 
+    layout->addWidget(mOkButton, 4, 2, 1, 1);
     layout->addWidget(mCancelButton, 4, 0, 1, 1);
     layout->addWidget(mRecordButton, 4, 1, 1, 1);
-    layout->addWidget(mOkButton, 4, 2, 1, 1);
 
+    connect(mOkButton, &QAbstractButton::clicked, this, &MacroRecordDialog::handleOkButtonClick);
+    connect(mCancelButton, &QAbstractButton::clicked, this, &MacroRecordDialog::handleCancelButtonClick);
     connect(mRecordButton, &QAbstractButton::clicked, this, &MacroRecordDialog::handleRecordButtonClick);
-    connect(&mInputReadThread, &InputReadThread::eventsReceived, this, &MacroRecordDialog::handleEventsReceived);
 }
+
+MacroRecordDialog::~MacroRecordDialog() noexcept = default;
 
 bool MacroRecordDialog::event(QEvent *event) {
     if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
@@ -105,45 +61,39 @@ bool MacroRecordDialog::event(QEvent *event) {
     }
 }
 
+void MacroRecordDialog::showEvent(QShowEvent *) {
+    clearRecordedKeys();
+}
+
+void MacroRecordDialog::handleOkButtonClick(bool) {
+    resultAvailable(true, mRecordedKeys);
+    clearRecordedKeys();
+    close();
+}
+
+void MacroRecordDialog::handleCancelButtonClick(bool) {
+    if (mRecording) {
+        handleRecordButtonClick(false);
+    }
+    resultAvailable(false, mRecordedKeys);
+    clearRecordedKeys();
+    close();
+}
+
 void MacroRecordDialog::handleRecordButtonClick(bool) {
     if (!mInputDeviceFound && !findInputDevice()) {
         mErrorMessage->showMessage(tr("Unable to locate input device."));
     } else {
         if (mRecording) {
             mRecording = false;
+            mOkButton->setEnabled(!mRecordedKeys.empty());
             mRecordButton->setText(tr("Record"));
-            mInputReadThread.stopListening();
+            stopRecordingInput();
         } else {
             mRecording = true;
+            mOkButton->setEnabled(false);
             mRecordButton->setText(tr("Stop Recording"));
-            mInputReadThread.setDevicePath(mInputDevicePath);
-            mInputReadThread.start();
-        }
-    }
-}
-
-void MacroRecordDialog::handleEventsReceived(int count, InputEvent *events) {
-    for (int i = 0; i < count; i++) {
-        auto it = keys.find(events[i].key);
-        if (it != keys.end()) {
-            // Valid key detected
-            auto key = it->second;
-            auto event = events[i];
-
-            QString delayText(mRecordedKeys.empty()? "-" : "%1");
-            if (!mRecordedKeys.empty()) {
-                delayText = delayText.arg(event.timestamp - mRecordedKeys.last()->timestamp);
-            }
-
-            auto row = mRecordedKeysList->rowCount();
-            mRecordedKeysList->setRowCount(row + 1);
-            mRecordedKeysList->setItem(row, 0, new QTableWidgetItem(QString(key.label)));
-            mRecordedKeysList->setItem(row, 1, new QTableWidgetItem(QString(event.isBreak? "Release" : "Press")));
-            mRecordedKeysList->setItem(row, 2, new QTableWidgetItem(delayText));
-
-            auto item = new InputEvent();
-            memcpy(item, &event, sizeof(InputEvent));
-            mRecordedKeys.append(item);
+            startRecordingInput();
         }
     }
 }
@@ -220,4 +170,91 @@ bool MacroRecordDialog::findInputDevice() {
     }
 
     return result;
+}
+
+bool MacroRecordDialog::startRecordingInput() {
+    memset(&mInputEventAio, 0, sizeof(struct aiocb));
+    memset(&mInputEventsRaw, 0, sizeof(struct input_event) * EVENTS_BUFFER_SIZE);
+
+    const int fd = ::open(mInputDevicePath.toStdString().c_str(), O_RDONLY);
+    if (fd > 0) {
+        mInputEventAio.aio_fildes = fd;
+        mInputEventAio.aio_offset = 0;
+        mInputEventAio.aio_buf = mInputEventsRaw;
+        mInputEventAio.aio_nbytes = sizeof(struct input_event) * EVENTS_BUFFER_SIZE;
+        mInputEventAio.aio_sigevent.sigev_notify = SIGEV_THREAD;
+        mInputEventAio.aio_sigevent.sigev_value.sival_ptr = this;
+        mInputEventAio.aio_sigevent._sigev_un._sigev_thread._function = &MacroRecordDialog::inputReadCallback;
+
+        const int result = aio_read(&mInputEventAio);
+        if (result != 0) {
+            ::close(fd);
+        }
+
+        return (result == 0);
+    } else {
+        return false;
+    }
+}
+
+void MacroRecordDialog::stopRecordingInput() {
+    aio_cancel(mInputEventAio.aio_fildes, &mInputEventAio);
+    ::close(mInputEventAio.aio_fildes);
+}
+
+void MacroRecordDialog::clearRecordedKeys() {
+    for (auto & item : mRecordedKeys) {
+        delete item;
+    }
+    mRecordedKeys.clear();
+}
+
+void MacroRecordDialog::handleEventsReceived(int count) {
+    for (int i = 0; i < count; i++) {
+        auto event = mInputEvents[i];
+        auto it = keys.find(event.key);
+        if (it != keys.end()) {
+            // Valid key detected
+            auto key = it->second;
+
+            QString delayText(mRecordedKeys.empty()? "-" : "%1");
+            if (!mRecordedKeys.empty()) {
+                delayText = delayText.arg(event.timestamp - mRecordedKeys.last()->timestamp);
+            }
+
+            auto row = mRecordedKeysList->rowCount();
+            mRecordedKeysList->setRowCount(row + 1);
+            mRecordedKeysList->setItem(row, 0, new QTableWidgetItem(QString(key.label)));
+            mRecordedKeysList->setItem(row, 1, new QTableWidgetItem(QString(event.isBreak? "Release" : "Press")));
+            mRecordedKeysList->setItem(row, 2, new QTableWidgetItem(delayText));
+
+            auto item = new InputEvent();
+            memcpy(item, &event, sizeof(InputEvent));
+            mRecordedKeys.append(item);
+        }
+    }
+}
+
+void MacroRecordDialog::inputReadCallback(union sigval value) {
+    auto dialog = reinterpret_cast<MacroRecordDialog*>(value.sival_ptr);
+    const int result = aio_return(&dialog->mInputEventAio);
+    if (result > sizeof(struct input_event)) {
+        const int readCount = result / (int) sizeof(struct input_event);
+        int eventCount = 0;
+        for (int i = 0; i < readCount; i++) {
+            if (dialog->mInputEventsRaw[i].type == EV_KEY && dialog->mInputEventsRaw[i].value != 2) {
+                dialog->mInputEvents[eventCount].key = dialog->mInputEventsRaw[i].code;
+                dialog->mInputEvents[eventCount].isBreak = dialog->mInputEventsRaw[i].value == 0;
+                dialog->mInputEvents[eventCount].timestamp = (dialog->mInputEventsRaw[i].time.tv_sec * 1000) + (dialog->mInputEventsRaw[i].time.tv_usec / 1000);
+                eventCount += 1;
+            }
+        }
+
+        dialog->handleEventsReceived(readCount);
+
+        dialog->mInputEventAio.aio_offset = 0;
+        dialog->mInputEventAio.aio_buf = dialog->mInputEventsRaw;
+        dialog->mInputEventAio.aio_nbytes = sizeof(struct input_event) * EVENTS_BUFFER_SIZE;
+        aio_read(&dialog->mInputEventAio);
+    }
 }
