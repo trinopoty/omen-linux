@@ -11,6 +11,9 @@ install:
 	rm /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko || true
 	cp snd-hda-codec-realtek.ko /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko
 
+backup:
+	cp /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko.bak
+
 restore:
 	rm /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko || true
 	cp /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko.bak /usr/lib/modules/$(shell uname -r)/kernel/sound/pci/hda/snd-hda-codec-realtek.ko
